@@ -70,7 +70,7 @@ m = 16
 Dict_init = Deep_KSVD.Init_DCT(patch_size, m)
 Dict_init = Dict_init.to(device)
 
-c_init = linalg.norm(Dict_init, ord=2) ** 2
+c_init = linalg.norm(Dict_init.cpu(), ord=2) ** 2
 c_init = torch.FloatTensor((c_init,))
 c_init = c_init.to(device)
 
