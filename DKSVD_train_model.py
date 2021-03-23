@@ -53,7 +53,7 @@ dataloader_test = DataLoader(
 )
 
 # Dataloader of the training set:
-batch_size = 1
+batch_size = 18
 dataloader_train = DataLoader(
     my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
 )
@@ -102,7 +102,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 start = time.time()
 epochs = 3
 running_loss = 0.0
-print_every = 1
+print_every = 100
 train_losses, test_losses = [], []
 for epoch in range(epochs):  # loop over the dataset multiple times
     for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, 0):

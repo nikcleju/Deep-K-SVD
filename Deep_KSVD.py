@@ -212,49 +212,51 @@ class DenoisingNet_MLP(torch.nn.Module):
     def soft_thresh(self, x, l):
         return torch.sign(x) * torch.max(torch.abs(x) - l, self.soft_comp)
 
-    def forward(self, x):
+    def forward(self, x):                                                       # EXPLANATIONS
 
         N, C, w, h = x.shape
 
-        unfold = self.unfold(x)
+        unfold = self.unfold(x)                                                 # Extract 8x8 patches from images, vectorize them, put everything in a tensor. Unfold = y
         N, d, number_patches = unfold.shape
-        unfold = unfold.transpose(1, 2)
+        unfold = unfold.transpose(1, 2)                                         # Final size = batch_size x num_vectors x n
 
-        lin = self.linear1(unfold).clamp(min=0)
+        lin = self.linear1(unfold).clamp(min=0)                                 # MLP to estimate this lam value (scalar), step size lambda
         lin = self.linear2(lin).clamp(min=0)
         lin = self.linear3(lin).clamp(min=0)
         lam = self.linear4(lin)
 
-        l = lam / self.c
-        y = torch.matmul(unfold, self.Dict)
-        S = self.Identity - (1 / self.c) * self.Dict.t().mm(self.Dict)
-        S = S.t()
+        l = lam / self.c                                                        # l = the soft threshold.  self.c approximates L = sigma_max (D^T D), lam = lambda = step size? Overall S_lambda/L
+        y = torch.matmul(unfold, self.Dict)                                     # Compute D^T y   (transposed)
+        S = self.Identity - (1 / self.c) * self.Dict.t().mm(self.Dict)          # Compute I - 1/L * D^T D
+        S = S.t()                                                               # Nic: isn't it symmetrical? Why need to transpose? Checked with np.linalg.norm(S.cpu().detach().numpy() - S.t().cpu().detach().numpy())
 
-        z = self.soft_thresh(y, l)
-        for t in range(self.T):
-            z = self.soft_thresh(torch.matmul(z, S) + (1 / self.c) * y, l)
+        z = self.soft_thresh(y, l)                                              # First iteration: initial previous solution = 0, soft-threshold the product D^T y
+        for t in range(self.T):                                                 # Successive iterations (layers):
+            z = self.soft_thresh(torch.matmul(z, S) + (1 / self.c) * y, l)      #   z = x = S( (I - 1/L D^T D) x + 1/L D^T y)
+                                                                                # z is the output sparse code
 
-        x_pred = torch.matmul(z, self.Dict.t())
-        x_pred = torch.clamp(x_pred, min=self.min_v, max=self.max_v)
-        x_pred = self.w * x_pred
-        x_pred = x_pred.transpose(1, 2)
+        x_pred = torch.matmul(z, self.Dict.t())                                 # Final approximated reconstruction = D * x
+        x_pred = torch.clamp(x_pred, min=self.min_v, max=self.max_v)            # Saturate at -1 and +1, probably because input images a like this
+        x_pred = self.w * x_pred                       # w size = 64            # Weight each of the output pixel of the patch. These are learned weights!
+        x_pred = x_pred.transpose(1, 2)                # size 18 x 14641 x 64   
 
-        normalize = torch.ones(N, number_patches, d)
+        normalize = torch.ones(N, number_patches, d)   # size 18 x 14641 x 64   # Prepare
         normalize = normalize.to(self.device)
         normalize = self.w * normalize
-        normalize = normalize.transpose(1, 2)
+        normalize = normalize.transpose(1, 2)          # size 18 x 64 x 14641
 
-        fold = torch.nn.functional.fold(
-            x_pred, output_size=(w, h), kernel_size=(self.patch_size, self.patch_size)
+        fold = torch.nn.functional.fold(                                        # Overlap again all patches (with weighted pixels) into a common image
+            x_pred, output_size=(w, h), kernel_size=(self.patch_size, self.patch_size)     
         )
 
-        norm = torch.nn.functional.fold(
+        norm = torch.nn.functional.fold(                                        # Overlap the weights just the same
             normalize,
             output_size=(w, h),
             kernel_size=(self.patch_size, self.patch_size),
         )
 
-        res = fold / norm
+        res = fold / norm                                                       # Reconstruct the image by dividing back to weights
+                                                                                # This all seems like an elaborate way of blending the patches into a common image, without edges
 
         return res
 
