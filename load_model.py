@@ -1,6 +1,6 @@
 """
 """
-
+import os
 import numpy as np
 from scipy import linalg
 import pickle
@@ -18,7 +18,7 @@ Dict_init = Deep_KSVD.Init_DCT(patch_size, m)
 Dict_init = Dict_init.to(device)
 
 # Squared Spectral norm:
-c_init = linalg.norm(Dict_init, ord=2) ** 2
+c_init = linalg.norm(Dict_init.cpu(), ord=2) ** 2
 c_init = torch.FloatTensor((c_init,))
 c_init = c_init.to(device)
 
@@ -44,7 +44,9 @@ model = Deep_KSVD.DenoisingNet_MLP(
     device,
 )
 
-model.load_state_dict(torch.load("model.pth", map_location="cpu"))
+#model_folder = 'results_train2_batchsize18_8h_6mil'
+model_folder = 'results_train3_TightFrame_48h_12mil'
+model.load_state_dict(torch.load(os.path.join(model_folder, "model.pth"), map_location="cpu"))
 model.to(device)
 
 # Test image names:

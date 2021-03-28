@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+import geotorch
 
 def order_F_to_C(n):
     idx = np.arange(0, n ** 2)
@@ -199,6 +200,14 @@ class DenoisingNet_MLP(torch.nn.Module):
         self.device = device
 
         self.Dict = torch.nn.Parameter(Dict_init)
+        #self.Dict = torch.nn.Linear(q, l, bias=False)
+        #self.Dict.weight = Dict_init
+
+        # Nic: impose grassmanian constraint on dictionary
+        print('Imposing grassmannian constraint on dictionary')
+        geotorch.grassmannian(self, "Dict")
+        self.Dict.data = Dict_init  # Reinitialize
+
         self.c = torch.nn.Parameter(c_init)
         self.unfold = torch.nn.Unfold(kernel_size=(self.patch_size, self.patch_size))
 

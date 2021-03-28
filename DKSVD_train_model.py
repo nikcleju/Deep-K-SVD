@@ -53,7 +53,7 @@ dataloader_test = DataLoader(
 )
 
 # Dataloader of the training set:
-batch_size = 18
+batch_size = 15
 dataloader_train = DataLoader(
     my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
 )
@@ -130,6 +130,8 @@ for epoch in range(epochs):  # loop over the dataset multiple times
             time_curr = end - start
             file_to_print.write("time:" + " " + str(time_curr) + "\n")
             start = time.time()
+
+            file_to_print.write("norm of Dict - Identity = {}\n".format( torch.norm( model.Dict.cpu() @  model.Dict.cpu().t() - torch.eye(64,64) ) ))
 
             with torch.no_grad():
                 test_loss = 0
