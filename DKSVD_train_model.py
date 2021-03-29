@@ -9,6 +9,8 @@ import time
 import Deep_KSVD
 from scipy import linalg
 
+import NST_models
+
 # List of the test image names BSD68:
 file_test = open("test_gray.txt", "r")
 onlyfiles_test = []
@@ -53,7 +55,7 @@ dataloader_test = DataLoader(
 )
 
 # Dataloader of the training set:
-batch_size = 15
+batch_size = 18
 dataloader_train = DataLoader(
     my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
 )
@@ -78,7 +80,10 @@ w_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
 w_init = w_init.to(device)
 
 D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 5, -1, 1
-model = Deep_KSVD.DenoisingNet_MLP(
+
+# Nicolae Cleju: Use our network
+#model = Deep_KSVD.DenoisingNet_MLP(
+model = NST_models.DenoisingNet_MLP_NST(    
     patch_size,
     D_in,
     H_1,
@@ -102,7 +107,10 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 start = time.time()
 epochs = 3
 running_loss = 0.0
+
 print_every = 100
+save_every_print = 20
+
 train_losses, test_losses = [], []
 for epoch in range(epochs):  # loop over the dataset multiple times
     for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, 0):
@@ -153,9 +161,10 @@ for epoch in range(epochs):  # loop over the dataset multiple times
             start = time.time()
 
             test_losses.append(test_loss)
-            s = "[%d, %d] loss_train: %f, loss_test: %f" % (
+            s = "[%d, %d, batchnum=%d] loss_train: %f, loss_test: %f" % (
                 epoch + 1,
                 (i + 1) * batch_size,
+                (i + 1),
                 running_loss / print_every,
                 test_loss,
             )
@@ -164,10 +173,13 @@ for epoch in range(epochs):  # loop over the dataset multiple times
             file_to_print.flush()
             running_loss = 0.0
 
-        if i % (10 * print_every) == (10 * print_every) - 1:
-            torch.save(model.state_dict(), "model.pth")
+        #if i % (10 * print_every) == (10 * print_every) - 1:
+        if i % (save_every_print * print_every) == (save_every_print * print_every) - 1:
+            model_name  = "model_{}.pth".format(i+1)
+            losses_name = "losses_{}.npz".format(i+1)
+            torch.save(model.state_dict(), model_name)
             np.savez(
-                "losses.npz", train=np.array(test_losses), test=np.array(train_losses)
+                losses_name, train=np.array(test_losses), test=np.array(train_losses)
             )
 
 
