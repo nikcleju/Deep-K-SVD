@@ -4,10 +4,14 @@ import os
 import numpy as np
 from scipy import linalg
 import pickle
+from tqdm import tqdm
+
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import Deep_KSVD
+
+import NST_models
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -28,7 +32,10 @@ w_init = w_init.to(device)
 
 # Deep-KSVD:
 D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 7, -1, 1
-model = Deep_KSVD.DenoisingNet_MLP(
+
+# Nicolae Cleju: Use our network
+#model = Deep_KSVD.DenoisingNet_MLP(
+model = NST_models.DenoisingNet_MLP_NST( 
     patch_size,
     D_in,
     H_1,
@@ -45,9 +52,8 @@ model = Deep_KSVD.DenoisingNet_MLP(
 )
 
 #model_folder = 'results_train2_batchsize18_8h_6mil'
-model_folder = 'results_train3_TightFrame_48h_12mil'
-model.load_state_dict(torch.load(os.path.join(model_folder, "model.pth"), map_location="cpu"))
-model.to(device)
+#model_folder = 'results_train3_TightFrame_48h_12mil'
+model_folder = 'results_train4_NST_12h_3mil'
 
 # Test image names:
 file_test = open("test_gray.txt", "r")
@@ -72,48 +78,61 @@ my_Data_test = Deep_KSVD.mydataset_full_images(
 dataloader_test = DataLoader(my_Data_test, batch_size=1, shuffle=False, num_workers=0)
 
 # List PSNR:
-file_to_print = open("list_test_PSNR.csv", "w")
-file_to_print.write(str(device) + "\n")
-file_to_print.flush()
+with open("list_test_PSNR_all.csv", "w") as fall:
 
-with open("list_test_PSNR.txt", "wb") as fp:
-    with torch.no_grad():
-        list_PSNR = []
-        list_PSNR_init = []
-        PSNR = 0
-        for k, (image_true, image_noise) in enumerate(dataloader_test, 0):
+    model_numbers = np.arange(start=2000, step=8000, stop=172000)
+    for model_n in tqdm(model_numbers, desc="Evaluating models"):
+        model_name = "model_{}.pth".format(model_n)
 
-            image_true_t = image_true[0, 0, :, :]
-            image_true_t = image_true_t.to(device)
+        model.load_state_dict(torch.load(model_name, map_location="cpu"))
+        model.to(device)
 
-            image_noise_0 = image_noise[0, 0, :, :]
-            image_noise_0 = image_noise_0.to(device)
+        file_to_print = open("list_test_PSNR_{}.csv".format(model_n), "w")
+        file_to_print.write(str(device) + "\n")
+        file_to_print.flush()
 
-            image_noise_t = image_noise.to(device)
-            image_restored_t = model(image_noise_t)
-            image_restored_t = image_restored_t[0, 0, :, :]
+        with open("list_test_PSNR_{}.txt".format(model_n), "wb") as fp:
 
-            PSNR_init = 10 * torch.log10(
-                4 / torch.mean((image_true_t - image_noise_0) ** 2)
-            )
-            file_to_print.write("Init:" + " " + str(PSNR_init) + "\n")
+            with torch.no_grad():
+                list_PSNR = []
+                list_PSNR_init = []
+                PSNR = 0
+                for k, (image_true, image_noise) in enumerate(dataloader_test, 0):
+
+                    image_true_t = image_true[0, 0, :, :]
+                    image_true_t = image_true_t.to(device)
+
+                    image_noise_0 = image_noise[0, 0, :, :]
+                    image_noise_0 = image_noise_0.to(device)
+
+                    image_noise_t = image_noise.to(device)
+                    image_restored_t = model(image_noise_t)
+                    image_restored_t = image_restored_t[0, 0, :, :]
+
+                    PSNR_init = 10 * torch.log10(
+                        4 / torch.mean((image_true_t - image_noise_0) ** 2)
+                    )
+                    file_to_print.write("Init:" + " " + str(PSNR_init) + "\n")
+                    file_to_print.flush()
+
+                    list_PSNR_init.append(PSNR_init)
+
+                    PSNR = 10 * torch.log10(
+                        4 / torch.mean((image_true_t - image_restored_t) ** 2)
+                    )
+                    PSNR = PSNR.cpu()
+                    file_to_print.write("Test:" + " " + str(PSNR) + "\n")
+                    file_to_print.flush()
+
+                    list_PSNR.append(PSNR)
+
+                    # imsave("im_noisy_"+str(q)+'.pdf',image_noise_0)
+                    # imsave("im_restored_"+str(q)+'.pdf',image_restored_t)
+
+            mean = np.mean(list_PSNR)
+            file_to_print.write("FINAL" + " " + str(mean) + "\n")
             file_to_print.flush()
+            pickle.dump(list_PSNR, fp)
 
-            list_PSNR_init.append(PSNR_init)
-
-            PSNR = 10 * torch.log10(
-                4 / torch.mean((image_true_t - image_restored_t) ** 2)
-            )
-            PSNR = PSNR.cpu()
-            file_to_print.write("Test:" + " " + str(PSNR) + "\n")
-            file_to_print.flush()
-
-            list_PSNR.append(PSNR)
-
-            # imsave("im_noisy_"+str(q)+'.pdf',image_noise_0)
-            # imsave("im_restored_"+str(q)+'.pdf',image_restored_t)
-
-    mean = np.mean(list_PSNR)
-    file_to_print.write("FINAL" + " " + str(mean) + "\n")
-    file_to_print.flush()
-    pickle.dump(list_PSNR, fp)
+        fall.write(', '.join((model_name, str(mean))) + "\n")
+        fall.flush()
