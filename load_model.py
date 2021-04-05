@@ -1,5 +1,6 @@
 """
 """
+import glob
 import os
 import numpy as np
 from scipy import linalg
@@ -14,6 +15,22 @@ import Deep_KSVD
 import NST_models
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
+#=========================================
+# Parameters
+
+#model_folder = 'results_train2_batchsize18_8h_6mil'
+#model_folder = 'results_train3_TightFrame_48h_12mil'
+#model_folder = 'results_train4_NST_12h_3mil'
+model_folder = 'results_NST_TF_6days'
+
+model_name_template = 'model_epoch1_iter{}_trainloss*_testloss*.pth'
+
+images_dir = 'gray'
+file_train_name = "train_gray.txt"
+file_test_name  = "test_gray.txt"
+#=========================================
 
 # Overcomplete Discrete Cosinus Transform:
 patch_size = 8
@@ -51,12 +68,10 @@ model = NST_models.DenoisingNet_MLP_NST(
     device,
 )
 
-#model_folder = 'results_train2_batchsize18_8h_6mil'
-#model_folder = 'results_train3_TightFrame_48h_12mil'
-model_folder = 'results_train4_NST_12h_3mil'
+
 
 # Test image names:
-file_test = open("test_gray.txt", "r")
+file_test = open(file_test_name, "r")
 onlyfiles_test = []
 for e in file_test:
     onlyfiles_test.append(e[:-1])
@@ -72,26 +87,28 @@ sigma = 25
 
 # Test Dataset:
 my_Data_test = Deep_KSVD.mydataset_full_images(
-    root_dir="gray", image_names=onlyfiles_test, sigma=sigma, transform=data_transform
+    root_dir=images_dir, image_names=onlyfiles_test, sigma=sigma, transform=data_transform
 )
 
 dataloader_test = DataLoader(my_Data_test, batch_size=1, shuffle=False, num_workers=0)
 
-# List PSNR:
-with open("list_test_PSNR_all.csv", "w") as fall:
 
-    model_numbers = np.arange(start=2000, step=8000, stop=172000)
+# List PSNR:
+with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
+
+    model_numbers = np.arange(start=6000, step=60000, stop=1632001)
     for model_n in tqdm(model_numbers, desc="Evaluating models"):
-        model_name = "model_{}.pth".format(model_n)
+        #model_name = "model_{}.pth".format(model_n)
+        model_name = [name for name in glob.glob(os.path.join(model_folder, model_name_template.format(model_n)))][0]
 
         model.load_state_dict(torch.load(model_name, map_location="cpu"))
         model.to(device)
 
-        file_to_print = open("list_test_PSNR_{}.csv".format(model_n), "w")
+        file_to_print = open(os.path.join(model_folder, "list_test_PSNR_{}.csv".format(model_n)), "w")
         file_to_print.write(str(device) + "\n")
         file_to_print.flush()
 
-        with open("list_test_PSNR_{}.txt".format(model_n), "wb") as fp:
+        with open(os.path.join(model_folder, "list_test_PSNR_{}.txt".format(model_n)), "wb") as fp:
 
             with torch.no_grad():
                 list_PSNR = []
