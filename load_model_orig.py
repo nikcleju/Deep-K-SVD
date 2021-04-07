@@ -1,5 +1,6 @@
 """
 """
+import glob
 import os
 import numpy as np
 from scipy import linalg
@@ -14,6 +15,17 @@ import Deep_KSVD
 import NST_models
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
+#=========================================
+# Parameters
+model_class = "Deep_KSVD.DenoisingNet_MLP_2"
+model_folder = 'out_orig_MLP2'
+model_name_template = 'model_epoch1_iter{}_trainloss*_testloss*.pth'
+images_dir = 'gray'
+file_train_name = "train_gray.txt"
+file_test_name  = "test_gray.txt"
+#=========================================
 
 # Overcomplete Discrete Cosinus Transform:
 patch_size = 8
@@ -30,33 +42,52 @@ c_init = c_init.to(device)
 w_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
 w_init = w_init.to(device)
 
+w_1_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+w_1_init = w_1_init.to(device)
+w_2_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+w_2_init = w_2_init.to(device)
+
 # Deep-KSVD:
 D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 7, -1, 1
 
-# Nicolae Cleju: Use our network
-model = Deep_KSVD.DenoisingNet_MLP(
-#model = NST_models.DenoisingNet_MLP_NST( 
-    patch_size,
-    D_in,
-    H_1,
-    H_2,
-    H_3,
-    D_out_lam,
-    T,
-    min_v,
-    max_v,
-    Dict_init,
-    c_init,
-    w_init,
-    device,
-)
+if model_class == "Deep_KSVD.DenoisingNet_MLP":
+    model = Deep_KSVD.DenoisingNet_MLP(
+        patch_size,
+        D_in,
+        H_1,
+        H_2,
+        H_3,
+        D_out_lam,
+        T,
+        min_v,
+        max_v,
+        Dict_init,
+        c_init,
+        w_init,
+        device,
+    )
+elif model_class == "Deep_KSVD.DenoisingNet_MLP_2":
+    model = Deep_KSVD.DenoisingNet_MLP_2(
+        patch_size,
+        D_in,
+        H_1,
+        H_2,
+        H_3,
+        D_out_lam,
+        T,
+        min_v,
+        max_v,
+        Dict_init,
+        c_init,
+        w_1_init,
+        w_2_init,
+        device,
+    )
 
-#model_folder = 'results_train2_batchsize18_8h_6mil'
-#model_folder = 'results_train3_TightFrame_48h_12mil'
-model_folder = 'results_train4_NST_12h_3mil'
+
 
 # Test image names:
-file_test = open("test_gray.txt", "r")
+file_test = open(file_test_name, "r")
 onlyfiles_test = []
 for e in file_test:
     onlyfiles_test.append(e[:-1])
@@ -72,26 +103,28 @@ sigma = 25
 
 # Test Dataset:
 my_Data_test = Deep_KSVD.mydataset_full_images(
-    root_dir="gray", image_names=onlyfiles_test, sigma=sigma, transform=data_transform
+    root_dir=images_dir, image_names=onlyfiles_test, sigma=sigma, transform=data_transform
 )
 
 dataloader_test = DataLoader(my_Data_test, batch_size=1, shuffle=False, num_workers=0)
 
-# List PSNR:
-with open("list_test_PSNR_all.csv", "w") as fall:
 
-    model_numbers = np.arange(start=2000, step=8000, stop=172000)
+# List PSNR:
+with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
+
+    model_numbers = np.arange(start=6000, step=180000, stop=648001)
     for model_n in tqdm(model_numbers, desc="Evaluating models"):
-        model_name = "model_orig_{}.pth".format(model_n)
+
+        model_name = [name for name in glob.glob(os.path.join(model_folder, model_name_template.format(model_n)))][0]
 
         model.load_state_dict(torch.load(model_name, map_location="cpu"))
         model.to(device)
 
-        file_to_print = open("list_test_PSNR_{}.csv".format(model_n), "w")
+        file_to_print = open(os.path.join(model_folder, "list_test_PSNR_{}.csv".format(model_n)), "w")
         file_to_print.write(str(device) + "\n")
         file_to_print.flush()
 
-        with open("list_test_PSNR_{}.txt".format(model_n), "wb") as fp:
+        with open(os.path.join(model_folder, "list_test_PSNR_{}.txt".format(model_n)), "wb") as fp:
 
             with torch.no_grad():
                 list_PSNR = []

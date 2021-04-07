@@ -13,14 +13,35 @@ from scipy import linalg
 
 import NST_models
 
+#=======================================
+# BSD 500 - 68
+#=======================================
+# images_dir = 'gray'
+# file_train_name = "train_gray.txt"
+# file_test_name  = "test_gray.txt"
+#=======================================
+#=======================================
+# BSD 50 - 7
+#=======================================
+images_dir = 'gray_small'
+file_train_name = "train_gray_small.txt"
+file_test_name  = "test_gray_small.txt"
+#=======================================
+
+save_folder = 'out_orig_MLP_small'
+
+
+
+#=======================================
+
 # List of the test image names BSD68:
-file_test = open("test_gray.txt", "r")
+file_test = open(file_test_name, "r")
 onlyfiles_test = []
 for e in file_test:
     onlyfiles_test.append(e[:-1])
 
 # List of the train image names:
-file_train = open("train_gray.txt", "r")
+file_train = open(file_train_name, "r")
 onlyfiles_train = []
 for e in file_train:
     onlyfiles_train.append(e[:-1])
@@ -31,13 +52,14 @@ std = 255 / 2
 data_transform = transforms.Compose(
     [Deep_KSVD.Normalize(mean=mean, std=std), Deep_KSVD.ToTensor()]
 )
+
 # Noise level:
 sigma = 25
 # Sub Image Size:
 sub_image_size = 128
 # Training Dataset:
 my_Data_train = Deep_KSVD.mydataset_sub_images(
-    root_dir="gray",
+    root_dir=images_dir,
     image_names=onlyfiles_train,
     sub_image_size=sub_image_size,
     sigma=sigma,
@@ -45,19 +67,25 @@ my_Data_train = Deep_KSVD.mydataset_sub_images(
 )
 # Test Dataset:
 my_Data_test = Deep_KSVD.mydataset_full_images(
-    root_dir="gray", image_names=onlyfiles_test, sigma=sigma, transform=data_transform
+    root_dir=images_dir, image_names=onlyfiles_test, sigma=sigma, transform=data_transform
 )
 
 # Dataloader of the test set:
-num_images_test = 5
-indices_test = np.random.randint(0, 68, num_images_test).tolist()
+if images_dir == 'gray':
+    num_images_test = 5
+    indices_test = np.random.randint(0, 68, num_images_test).tolist()
+elif images_dir == 'gray_small':
+    indices_test = list(range(7))
+else:
+    raise ValueError("Unknown image directory!")
+
 my_Data_test_sub = torch.utils.data.Subset(my_Data_test, indices_test)
 dataloader_test = DataLoader(
     my_Data_test_sub, batch_size=1, shuffle=False, num_workers=0
 )
 
 # Dataloader of the training set:
-batch_size = 10
+batch_size = 16
 dataloader_train = DataLoader(
     my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
 )
@@ -69,7 +97,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 patch_size = 8
 m = 16
 Dict_init = Deep_KSVD.Init_DCT(patch_size, m)
+U_init, S_init, VT_init = torch.linalg.svd(Dict_init, compute_uv=True, full_matrices=False)   # Compute SVD
 Dict_init = Dict_init.to(device)
+U_init = U_init.to(device)
+S_init = S_init.to(device)
+VT_init = VT_init.to(device)
+
 
 c_init = linalg.norm(Dict_init.cpu(), ord=2) ** 2
 c_init = torch.FloatTensor((c_init,))
@@ -85,23 +118,8 @@ w_2_init = w_2_init.to(device)
 
 D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 5, -1, 1
 
-# Nicolae Cleju: Use our network
-# model = Deep_KSVD.DenoisingNet_MLP(
-#     patch_size,
-#     D_in,
-#     H_1,
-#     H_2,
-#     H_3,
-#     D_out_lam,
-#     T,
-#     min_v,
-#     max_v,
-#     Dict_init,
-#     c_init,
-#     w_init,
-#     device,
-# )
-model = Deep_KSVD.DenoisingNet_MLP_2(
+# Single MLP 
+model = Deep_KSVD.DenoisingNet_MLP(
     patch_size,
     D_in,
     H_1,
@@ -113,10 +131,27 @@ model = Deep_KSVD.DenoisingNet_MLP_2(
     max_v,
     Dict_init,
     c_init,
-    w_1_init,
-    w_2_init,
+    w_init,
     device,
 )
+
+# Two MLP
+# model = Deep_KSVD.DenoisingNet_MLP_2(
+#     patch_size,
+#     D_in,
+#     H_1,
+#     H_2,
+#     H_3,
+#     D_out_lam,
+#     T,
+#     min_v,
+#     max_v,
+#     Dict_init,
+#     c_init,
+#     w_1_init,
+#     w_2_init,
+#     device,
+# )
 
 model.to(device)
 
@@ -132,7 +167,7 @@ print_every = 100
 save_every_print = 60
 
 # Save everything in this folder
-save_folder = 'out_orig_MLP2'
+
 os.makedirs(save_folder, exist_ok=True)
 
 # Set save file path

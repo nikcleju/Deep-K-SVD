@@ -191,8 +191,8 @@ file_to_print.flush()
 
 # Train
 train_losses, test_losses = [], []
-for epoch in range(epochs):  # loop over the dataset multiple times
-    for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, 0):
+for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
+    for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, start=i_start):
         # get the inputs
         sub_images, sub_images_noise = (
             sub_images.to(device),
