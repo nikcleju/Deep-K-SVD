@@ -182,7 +182,8 @@ epoch_start = 0
 i_start = 0
 
 # Load from previous file
-start_training_from = None  
+#start_training_from = None  
+start_training_from = "out_orig_MLP_small/checkpoint_epoch1_iter150000_trainloss0.0071791534_testloss0.0060924115.pth.tar"
 #start_training_from = "out_orig_MLP/checkpoint_epoch1_iter426000_trainloss0.0062626188_testloss0.0067728135.pth.tar"
 #start_training_from = "checkpoint_epoch1_iter648000_trainloss0.0062827535_testloss0.0067506767.pth.tar"
 if start_training_from is not None:
@@ -204,7 +205,22 @@ file_to_print.flush()
 # Train
 train_losses, test_losses = [], []
 for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
-    for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, start=i_start):
+
+    # Start from i_start, consume the first `i_start` in the data generator
+    file_to_print.write(str(datetime.datetime.now()) + ": ")
+    file_to_print.write('Skipping {} batches...\n'.format(i_start))
+    file_to_print.flush()
+
+    enumerator = enumerate(dataloader_train)
+    for ii in range(i_start):
+        next(enumerator)
+
+    file_to_print.write(str(datetime.datetime.now()) + ": ")
+    file_to_print.write('Start iterations...\n')
+    file_to_print.flush()
+
+    #for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, start=i_start):   # start= changes only the indexing, does not actually skip the elements
+    for i, (sub_images, sub_images_noise) in enumerator:   # start= changes only the indexing, does not actually skip the elements
         # get the inputs
         sub_images, sub_images_noise = (
             sub_images.to(device),
@@ -258,7 +274,8 @@ for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
             start = time.time()
 
             # Print info in file
-            s = "[%d, %d, batchnum=%d] loss_train: %f, loss_test: %f" % (
+            s = "%s: [%d, %d, batchnum=%d] loss_train: %f, loss_test: %f" % (
+                str(datetime.datetime.now()),
                 epoch + 1,
                 (i + 1) * batch_size,
                 (i + 1),
