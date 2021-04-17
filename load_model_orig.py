@@ -4,6 +4,7 @@ import glob
 import os
 import numpy as np
 from scipy import linalg
+import matplotlib.pyplot as plt
 import pickle
 from tqdm import tqdm
 
@@ -180,6 +181,11 @@ with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
 
                         # imsave("im_noisy_"+str(q)+'.pdf',image_noise_0)
                         # imsave("im_restored_"+str(q)+'.pdf',image_restored_t)
+                        im_noisy_filename    = os.path.join(model_folder, "im_noisy_{}.pdf".format(k))
+                        im_restored_filename = os.path.join(model_folder, "im_restored_{}_ep{}_it{}.pdf".format(k, epoch+1, iter_n))
+                        if not os.path.exists(im_noisy_filename):
+                            plt.imsave(im_noisy_filename, image_noise_0.cpu(), cmap='gray')
+                        plt.imsave(im_restored_filename, image_restored_t.cpu(), cmap='gray')
 
                 mean = np.mean(list_PSNR)
                 file_to_print.write("FINAL" + " " + str(mean) + "\n")
