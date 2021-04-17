@@ -183,7 +183,8 @@ i_start = 0
 
 # Load from previous file
 #start_training_from = None  
-start_training_from = "out_orig_MLP_small/checkpoint_epoch1_iter180000_trainloss0.0072173813_testloss0.0060881705.pth.tar"
+start_training_from = "out_orig_MLP_small/checkpoint_epoch2_iter132000_trainloss0.0072421858_testloss0.0060635836.pth.tar"
+#start_training_from = "out_orig_MLP_small/checkpoint_epoch1_iter180000_trainloss0.0072173813_testloss0.0060881705.pth.tar"
 #start_training_from = "out_orig_MLP_small/checkpoint_epoch1_iter150000_trainloss0.0071791534_testloss0.0060924115.pth.tar"
 #start_training_from = "out_orig_MLP/checkpoint_epoch1_iter426000_trainloss0.0062626188_testloss0.0067728135.pth.tar"
 #start_training_from = "checkpoint_epoch1_iter648000_trainloss0.0062827535_testloss0.0067506767.pth.tar"

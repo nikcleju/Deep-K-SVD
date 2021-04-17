@@ -19,12 +19,27 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 #=========================================
 # Parameters
-model_class = "Deep_KSVD.DenoisingNet_MLP_2"
-model_folder = 'out_orig_MLP2'
-model_name_template = 'model_epoch1_iter{}_trainloss*_testloss*.pth'
-images_dir = 'gray'
-file_train_name = "train_gray.txt"
-file_test_name  = "test_gray.txt"
+model_class = "Deep_KSVD.DenoisingNet_MLP"
+model_folder = 'out_orig_MLP_small'
+
+#model_class = "Deep_KSVD.DenoisingNet_MLP_2"
+#model_folder = 'out_orig_MLP2'
+
+model_name_template = 'model_epoch{}_iter{}_trainloss*_testloss*.pth'
+
+#=======================================
+# BSD 500 - 68
+#=======================================
+# images_dir = 'gray'
+# file_train_name = "train_gray.txt"
+# file_test_name  = "test_gray.txt"
+#=======================================
+#=======================================
+# BSD 50 - 7
+#=======================================
+images_dir = 'gray_small'
+file_train_name = "train_gray_small.txt"
+file_test_name  = "test_gray_small.txt"
 #=========================================
 
 # Overcomplete Discrete Cosinus Transform:
@@ -108,64 +123,68 @@ my_Data_test = Deep_KSVD.mydataset_full_images(
 
 dataloader_test = DataLoader(my_Data_test, batch_size=1, shuffle=False, num_workers=0)
 
+epochs = 3
+epoch_start = 0
 
 # List PSNR:
 with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
 
-    model_numbers = np.arange(start=6000, step=180000, stop=648001)
-    for model_n in tqdm(model_numbers, desc="Evaluating models"):
+    for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
 
-        model_name = [name for name in glob.glob(os.path.join(model_folder, model_name_template.format(model_n)))][0]
+        iterations = np.arange(start=6000, step=6000, stop=180001)
+        for iter_n in tqdm(iterations, desc="Epoch {}, evaluating models".format(epoch+1)):
 
-        model.load_state_dict(torch.load(model_name, map_location="cpu"))
-        model.to(device)
+            model_name = [name for name in glob.glob(os.path.join(model_folder, model_name_template.format(epoch+1, iter_n)))][0]
 
-        file_to_print = open(os.path.join(model_folder, "list_test_PSNR_{}.csv".format(model_n)), "w")
-        file_to_print.write(str(device) + "\n")
-        file_to_print.flush()
+            model.load_state_dict(torch.load(model_name, map_location="cpu"))
+            model.to(device)
 
-        with open(os.path.join(model_folder, "list_test_PSNR_{}.txt".format(model_n)), "wb") as fp:
-
-            with torch.no_grad():
-                list_PSNR = []
-                list_PSNR_init = []
-                PSNR = 0
-                for k, (image_true, image_noise) in enumerate(dataloader_test, 0):
-
-                    image_true_t = image_true[0, 0, :, :]
-                    image_true_t = image_true_t.to(device)
-
-                    image_noise_0 = image_noise[0, 0, :, :]
-                    image_noise_0 = image_noise_0.to(device)
-
-                    image_noise_t = image_noise.to(device)
-                    image_restored_t = model(image_noise_t)
-                    image_restored_t = image_restored_t[0, 0, :, :]
-
-                    PSNR_init = 10 * torch.log10(
-                        4 / torch.mean((image_true_t - image_noise_0) ** 2)
-                    )
-                    file_to_print.write("Init:" + " " + str(PSNR_init) + "\n")
-                    file_to_print.flush()
-
-                    list_PSNR_init.append(PSNR_init)
-
-                    PSNR = 10 * torch.log10(
-                        4 / torch.mean((image_true_t - image_restored_t) ** 2)
-                    )
-                    PSNR = PSNR.cpu()
-                    file_to_print.write("Test:" + " " + str(PSNR) + "\n")
-                    file_to_print.flush()
-
-                    list_PSNR.append(PSNR)
-
-                    # imsave("im_noisy_"+str(q)+'.pdf',image_noise_0)
-                    # imsave("im_restored_"+str(q)+'.pdf',image_restored_t)
-
-            mean = np.mean(list_PSNR)
-            file_to_print.write("FINAL" + " " + str(mean) + "\n")
+            file_to_print = open(os.path.join(model_folder, "list_test_PSNR_{}_{}.csv".format(epoch+1, iter_n)), "w")
+            file_to_print.write(str(device) + "\n")
             file_to_print.flush()
-            pickle.dump(list_PSNR, fp)
 
-        fall.write(', '.join((model_name, str(mean))) + "\n")
-        fall.flush()
+            with open(os.path.join(model_folder, "list_test_PSNR_{}_{}.txt".format(epoch+1, iter_n)), "wb") as fp:
+
+                with torch.no_grad():
+                    list_PSNR = []
+                    list_PSNR_init = []
+                    PSNR = 0
+                    for k, (image_true, image_noise) in enumerate(dataloader_test, 0):
+
+                        image_true_t = image_true[0, 0, :, :]
+                        image_true_t = image_true_t.to(device)
+
+                        image_noise_0 = image_noise[0, 0, :, :]
+                        image_noise_0 = image_noise_0.to(device)
+
+                        image_noise_t = image_noise.to(device)
+                        image_restored_t = model(image_noise_t)
+                        image_restored_t = image_restored_t[0, 0, :, :]
+
+                        PSNR_init = 10 * torch.log10(
+                            4 / torch.mean((image_true_t - image_noise_0) ** 2)
+                        )
+                        file_to_print.write("Init:" + " " + str(PSNR_init) + "\n")
+                        file_to_print.flush()
+
+                        list_PSNR_init.append(PSNR_init)
+
+                        PSNR = 10 * torch.log10(
+                            4 / torch.mean((image_true_t - image_restored_t) ** 2)
+                        )
+                        PSNR = PSNR.cpu()
+                        file_to_print.write("Test:" + " " + str(PSNR) + "\n")
+                        file_to_print.flush()
+
+                        list_PSNR.append(PSNR)
+
+                        # imsave("im_noisy_"+str(q)+'.pdf',image_noise_0)
+                        # imsave("im_restored_"+str(q)+'.pdf',image_restored_t)
+
+                mean = np.mean(list_PSNR)
+                file_to_print.write("FINAL" + " " + str(mean) + "\n")
+                file_to_print.flush()
+                pickle.dump(list_PSNR, fp)
+
+            fall.write(', '.join((model_name, str(mean))) + "\n")
+            fall.flush()
