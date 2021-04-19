@@ -192,5 +192,10 @@ with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
                 file_to_print.flush()
                 pickle.dump(list_PSNR, fp)
 
-            fall.write(', '.join((model_name, str(mean))) + "\n")
+            #fall.write(', '.join((model_name, str(mean))) + "\n")
+            # Write all individual values also
+            fall.write(', '.join((model_name, 
+                                  ', '.join([str(x.item()) for x in list_PSNR_init]), 
+                                  ', '.join([str(x.item()) for x in list_PSNR]),
+                                  str(mean))) + "\n")
             fall.flush()
