@@ -28,6 +28,13 @@ file_train_name = "train_gray_small.txt"
 file_test_name  = "test_gray_small.txt"
 #=======================================
 
+#save_folder = 'results_NST_Orth_small_3p'
+save_folder = 'results_NST_Orth2_small_3p'
+
+
+
+#=======================================
+
 # List of the test image names BSD68:
 file_test = open(file_test_name, "r")
 onlyfiles_test = []
@@ -79,7 +86,8 @@ dataloader_test = DataLoader(
 )
 
 # Dataloader of the training set:
-batch_size = 16
+#batch_size = 16
+batch_size = 9
 dataloader_train = DataLoader(
     my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
 )
@@ -105,6 +113,11 @@ c_init = c_init.to(device)
 w_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
 w_init = w_init.to(device)
 
+w_1_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+w_1_init = w_1_init.to(device)
+w_2_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+w_2_init = w_2_init.to(device)
+
 D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 5, -1, 1
 
 # Nicolae Cleju: Use our network
@@ -125,7 +138,24 @@ D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 5, -1, 1
 #     device = device,
 # )
 
-model = NST_models.DenoisingNet_MLP_NST_Orth(    
+# model = NST_models.DenoisingNet_MLP_NST_Orth(    
+#     patch_size = patch_size,
+#     D_in = D_in,
+#     H_1 = H_1,
+#     H_2 = H_2,
+#     H_3 = H_3,
+#     D_out_lam = D_out_lam,
+#     T = T,
+#     min_v = min_v,
+#     max_v = max_v,
+#     U_init = U_init,
+#     S_init = S_init,    
+#     VT_init = VT_init,
+#     c_init = c_init,
+#     w_init = w_init,
+#     device = device,
+# )
+model = NST_models.DenoisingNet_MLP_NST_Orth2(    
     patch_size = patch_size,
     D_in = D_in,
     H_1 = H_1,
@@ -139,9 +169,11 @@ model = NST_models.DenoisingNet_MLP_NST_Orth(
     S_init = S_init,    
     VT_init = VT_init,
     c_init = c_init,
-    w_init = w_init,
+    w_1_init = w_1_init,
+    w_2_init = w_2_init,
     device = device,
 )
+
 model.to(device)
 
 # Construct our loss function and an Optimizer:
@@ -156,7 +188,7 @@ print_every = 100
 save_every_print = 60
 
 # Save everything in this folder
-save_folder = 'out'
+
 os.makedirs(save_folder, exist_ok=True)
 
 # Set save file path
@@ -166,9 +198,13 @@ while os.path.exists(file_to_print_name_template.format(i)):
     i += 1
 file_to_print_name = file_to_print_name_template.format(i)
 
+# Initialize starting params
+epoch_start = 0
+i_start = 0
+
 # Load from previous file
-start_training_from = None   # checkpoint
-#start_training_from = "out/checkpoint_epoch1_iter200_trainloss0.0195154356_testloss0.0184636429.pth.tar"
+#start_training_from = None   # checkpoint
+start_training_from = "results_NST_Orth2_small_3p/checkpoint_epoch1_iter324000_trainloss0.0068617603_testloss0.0059018237.pth.tar"
 if start_training_from is not None:
     checkpoint = torch.load(start_training_from)
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -189,14 +225,15 @@ file_to_print.flush()
 train_losses, test_losses = [], []
 for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
 
-    # Start from i_start, consume the first `i_start` in the data generator
+    # For the first epoch only, start from i_start, so consume the first `i_start` in the data generator
     file_to_print.write(str(datetime.datetime.now()) + ": ")
     file_to_print.write('Skipping {} batches...\n'.format(i_start))
     file_to_print.flush()
 
     enumerator = enumerate(dataloader_train)
-    for ii in range(i_start):
-        next(enumerator)
+    if epoch == epoch_start:
+        for ii in range(i_start):
+            next(enumerator)
 
     file_to_print.write(str(datetime.datetime.now()) + ": ")
     file_to_print.write('Start iterations...\n')
