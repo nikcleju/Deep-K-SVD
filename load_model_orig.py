@@ -20,11 +20,13 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 #=========================================
 # Parameters
-model_class = "Deep_KSVD.DenoisingNet_MLP"
-model_folder = 'out_orig_MLP_small'
-
-#model_class = "Deep_KSVD.DenoisingNet_MLP_2"
-#model_folder = 'out_orig_MLP2'
+# model_class = "Deep_KSVD.DenoisingNet_MLP"
+# model_folder = 'out_orig_MLP_small'
+model_class = "Deep_KSVD.DenoisingNet_MLP_2"
+model_folder = 'out_orig_MLP2_small'
+epochs = 2
+epoch_start = 0
+iter_stop = 324001
 
 model_name_template = 'model_epoch{}_iter{}_trainloss*_testloss*.pth'
 
@@ -124,15 +126,12 @@ my_Data_test = Deep_KSVD.mydataset_full_images(
 
 dataloader_test = DataLoader(my_Data_test, batch_size=1, shuffle=False, num_workers=0)
 
-epochs = 3
-epoch_start = 0
-
 # List PSNR:
 with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
 
     for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
 
-        iterations = np.arange(start=6000, step=6000, stop=180001)
+        iterations = np.arange(start=6000, step=6000, stop=iter_stop)
         for iter_n in tqdm(iterations, desc="Epoch {}, evaluating models".format(epoch+1)):
 
             model_name = [name for name in glob.glob(os.path.join(model_folder, model_name_template.format(epoch+1, iter_n)))][0]

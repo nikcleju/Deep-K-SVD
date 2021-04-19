@@ -28,7 +28,8 @@ file_train_name = "train_gray_small.txt"
 file_test_name  = "test_gray_small.txt"
 #=======================================
 
-save_folder = 'out_orig_MLP_small'
+#save_folder = 'out_orig_MLP_small'
+save_folder = 'out_orig_MLP2_small'
 
 
 
@@ -85,7 +86,8 @@ dataloader_test = DataLoader(
 )
 
 # Dataloader of the training set:
-batch_size = 16
+#batch_size = 16
+batch_size = 9
 dataloader_train = DataLoader(
     my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
 )
@@ -182,8 +184,8 @@ epoch_start = 0
 i_start = 0
 
 # Load from previous file
-#start_training_from = None  
-start_training_from = "out_orig_MLP_small/checkpoint_epoch2_iter132000_trainloss0.0072421858_testloss0.0060635836.pth.tar"
+start_training_from = None  
+#start_training_from = "out_orig_MLP_small/checkpoint_epoch2_iter132000_trainloss0.0072421858_testloss0.0060635836.pth.tar"
 #start_training_from = "out_orig_MLP_small/checkpoint_epoch1_iter180000_trainloss0.0072173813_testloss0.0060881705.pth.tar"
 #start_training_from = "out_orig_MLP_small/checkpoint_epoch1_iter150000_trainloss0.0071791534_testloss0.0060924115.pth.tar"
 #start_training_from = "out_orig_MLP/checkpoint_epoch1_iter426000_trainloss0.0062626188_testloss0.0067728135.pth.tar"
