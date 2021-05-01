@@ -18,15 +18,15 @@ from DKSVD_train_model import run_train
 #=======================================
 
 #save_folder = 'results_NST_Orth_small_3p'
-save_folder = 'results_NST_Orth2_small_3p'
+#save_folder = 'results_NST_Orth2_small_3p'
 
 run_train(
-    net_name='DenoisingNet_MLP',
+    net_name='DenoisingNet_MLP_NST_Orth',
     images_dir='gray',
     file_train_name="train_gray.txt",
     file_test_name= "test_gray.txt",
     num_images_test=5,
-    save_folder='newres_gray_DKSVD_MLP1',
+    save_folder='newres_gray_NST_MLP1',
     batch_size=16,
     patch_size=8,
     m=16,
