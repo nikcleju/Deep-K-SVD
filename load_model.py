@@ -21,25 +21,23 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #=========================================
 # Parameters
 
-model_class = "NST_models.DenoisingNet_MLP_NST_Orth"
-model_folder = 'results_NST_Orth_small_3ep'
-epochs = 3
-epoch_start = 0
-iter_stop = 180001
+# model_class = "NST_models.DenoisingNet_MLP_NST_Orth"
+# model_folder = 'results_NST_Orth_small_3ep'
+# epochs = 3
+# epoch_start = 0
+# iter_stop = 180001
 
 model_class = "NST_models.DenoisingNet_MLP_NST_Orth2"
 model_folder = 'results_NST_Orth2_small_3p'
-epochs = 2
+epochs = 3
 epoch_start = 0
 iter_stop = 324001
-
 
 
 #model_folder = 'results_train2_batchsize18_8h_6mil'
 #model_folder = 'results_train3_TightFrame_48h_12mil'
 #model_folder = 'results_train4_NST_12h_3mil'
 #model_folder = 'results_NST_TF_6days'
-
 
 model_name_template = 'model_epoch{}_iter{}_trainloss*_testloss*.pth'
 
@@ -77,6 +75,11 @@ c_init = c_init.to(device)
 # Average weight:
 w_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
 w_init = w_init.to(device)
+
+w_1_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+w_1_init = w_1_init.to(device)
+w_2_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+w_2_init = w_2_init.to(device)
 
 # Deep-KSVD:
 D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 7, -1, 1
@@ -201,8 +204,8 @@ with open(os.path.join(model_folder, "list_test_PSNR_all.csv"), "w") as fall:
                         im_noisy_filename    = os.path.join(model_folder, "im_noisy_{}.pdf".format(k))
                         im_restored_filename = os.path.join(model_folder, "im_restored_{}_ep{}_it{}.pdf".format(k, epoch+1, iter_n))
                         if not os.path.exists(im_noisy_filename):
-                            plt.imsave(im_noisy_filename, image_noise_0.cpu(), cmap='gray')
-                        plt.imsave(im_restored_filename, image_restored_t.cpu(), cmap='gray')
+                            plt.imsave(im_noisy_filename, image_noise_0.cpu(), cmap='gray', vmin=-1, vmax=1)
+                        plt.imsave(im_restored_filename, image_restored_t.cpu(), cmap='gray', vmin=-1, vmax=1)
 
                 mean = np.mean(list_PSNR)
                 file_to_print.write("FINAL" + " " + str(mean) + "\n")

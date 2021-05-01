@@ -40,3 +40,8 @@ __pycache__/
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.pdf
+*.txt
+*.pth
+*.csv
+*.npz

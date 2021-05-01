@@ -8,332 +8,393 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import time
-import Deep_KSVD
+from tqdm import tqdm
 from scipy import linalg
+from numpy.random import default_rng
+rng = default_rng()
 
+import Deep_KSVD
 import NST_models
 
-#=======================================
-# BSD 500 - 68
-#=======================================
-# images_dir = 'gray'
-# file_train_name = "train_gray.txt"
-# file_test_name  = "test_gray.txt"
-#=======================================
-#=======================================
-# BSD 50 - 7
-#=======================================
-images_dir = 'gray_small'
-file_train_name = "train_gray_small.txt"
-file_test_name  = "test_gray_small.txt"
-#=======================================
-
-#save_folder = 'results_NST_Orth_small_3p'
-save_folder = 'results_NST_Orth2_small_3p'
-
-
 
 #=======================================
 
-# List of the test image names BSD68:
-file_test = open(file_test_name, "r")
-onlyfiles_test = []
-for e in file_test:
-    onlyfiles_test.append(e[:-1])
+def run_train(  net_name,           # name of network
+                images_dir,         # images folder
+                file_train_name,    # file with names of images to use for train
+                file_test_name,     # file with names of files to use for test
+                num_images_test,    # number of test files to use for validation
+                save_folder,        # where to save outputs
+                batch_size,         # batch size
+                patch_size,         # dict params
+                m,                  # dict params
+                sigma,              # noise level
+                sub_image_size,     # 128
+                epochs,
+                print_every,
+                save_every_print,
+                start_training_from
+                ):
 
-# List of the train image names:
-file_train = open(file_train_name, "r")
-onlyfiles_train = []
-for e in file_train:
-    onlyfiles_train.append(e[:-1])
+    args_string = \
+        """ Arguments:
+        net_name={},
+        images_dir={},
+        file_train_name={},
+        file_test_name={},
+        num_images_test={},
+        save_folder={},
+        batch_size={},
+        patch_size={},
+        m={},
+        sigma={},
+        sub_image_size={},
+        epochs={},
+        print_every={},
+        save_every_print={},
+        start_training_from={}
+        """.format( net_name,           # name of network
+                    images_dir,         # images folder
+                    file_train_name,    # file with names of images to use for train
+                    file_test_name,     # file with names of files to use for test
+                    num_images_test,    # number of test files to use for validation
+                    save_folder,        # where to save outputs
+                    batch_size,         # batch size
+                    patch_size,         # dict params
+                    m,                  # dict params
+                    sigma,              # noise level
+                    sub_image_size,     # 128
+                    epochs,
+                    print_every,
+                    save_every_print,
+                    start_training_from)
 
-# Rescaling in [-1, 1]:
-mean = 255 / 2
-std = 255 / 2
-data_transform = transforms.Compose(
-    [Deep_KSVD.Normalize(mean=mean, std=std), Deep_KSVD.ToTensor()]
-)
+    # List of the test image names BSD68:
+    file_test = open(file_test_name, "r")
+    onlyfiles_test = []
+    for e in file_test:
+        onlyfiles_test.append(e[:-1])
 
-# Noise level:
-sigma = 25
-# Sub Image Size:
-sub_image_size = 128
-# Training Dataset:
-my_Data_train = Deep_KSVD.mydataset_sub_images(
-    root_dir=images_dir,
-    image_names=onlyfiles_train,
-    sub_image_size=sub_image_size,
-    sigma=sigma,
-    transform=data_transform,
-)
-# Test Dataset:
-my_Data_test = Deep_KSVD.mydataset_full_images(
-    root_dir=images_dir, image_names=onlyfiles_test, sigma=sigma, transform=data_transform
-)
+    # List of the train image names:
+    file_train = open(file_train_name, "r")
+    onlyfiles_train = []
+    for e in file_train:
+        onlyfiles_train.append(e[:-1])
 
-# Dataloader of the test set:
-if images_dir == 'gray':
-    num_images_test = 5
-    indices_test = np.random.randint(0, 68, num_images_test).tolist()
-elif images_dir == 'gray_small':
-    indices_test = list(range(7))
-else:
-    raise ValueError("Unknown image directory!")
+    # Rescaling in [-1, 1]:
+    mean = 255 / 2
+    std = 255 / 2
+    data_transform = transforms.Compose(
+        [Deep_KSVD.Normalize(mean=mean, std=std), Deep_KSVD.ToTensor()]
+    )
 
-my_Data_test_sub = torch.utils.data.Subset(my_Data_test, indices_test)
-dataloader_test = DataLoader(
-    my_Data_test_sub, batch_size=1, shuffle=False, num_workers=0
-)
+    # Noise level:
+    #sigma = 25
+    # Sub Image Size:
+    #sub_image_size = 128
+    # Training Dataset:
+    my_Data_train = Deep_KSVD.mydataset_sub_images(
+        root_dir=images_dir,
+        image_names=onlyfiles_train,
+        sub_image_size=sub_image_size,
+        sigma=sigma,
+        transform=data_transform,
+    )
+    # Test Dataset:
+    my_Data_test = Deep_KSVD.mydataset_full_images(
+        root_dir=images_dir, image_names=onlyfiles_test, sigma=sigma, transform=data_transform
+    )
 
-# Dataloader of the training set:
-#batch_size = 16
-batch_size = 9
-dataloader_train = DataLoader(
-    my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
-)
+    # Dataloader of the test set:
+    # if images_dir == 'gray':
+    #     num_images_test = 5
+    #     indices_test = np.random.randint(0, len(onlyfiles_test), num_images_test).tolist()
+    # elif images_dir == 'gray_small':
+    #     indices_test = list(range( min(len(onlyfiles_test),7) ))
+    # else:
+    #     raise ValueError("Unknown image directory!")
+    indices_test = rng.choice(len(onlyfiles_test), size=num_images_test, replace=False)
 
-# Create a file to see the output during the training:
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    my_Data_test_sub = torch.utils.data.Subset(my_Data_test, indices_test)
+    dataloader_test = DataLoader(
+        my_Data_test_sub, batch_size=1, shuffle=False, num_workers=0
+    )
 
-# Initialization:
-patch_size = 8
-m = 16
-Dict_init = Deep_KSVD.Init_DCT(patch_size, m)
-U_init, S_init, VT_init = torch.linalg.svd(Dict_init, compute_uv=True, full_matrices=False)   # Compute SVD
-Dict_init = Dict_init.to(device)
-U_init = U_init.to(device)
-S_init = S_init.to(device)
-VT_init = VT_init.to(device)
+    # Dataloader of the training set:
+    #batch_size = 16
+    #batch_size = 9
+    dataloader_train = DataLoader(
+        my_Data_train, batch_size=batch_size, shuffle=True, num_workers=0
+    )
+    total_batches_num = len(dataloader_train)
 
+    # Create a file to see the output during the training:
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-c_init = linalg.norm(Dict_init.cpu(), ord=2) ** 2
-c_init = torch.FloatTensor((c_init,))
-c_init = c_init.to(device)
+    # Initialization:
+    #patch_size = 8
+    #m = 16
+    Dict_init = Deep_KSVD.Init_DCT(patch_size, m)
+    U_init, S_init, VT_init = torch.linalg.svd(Dict_init, compute_uv=True, full_matrices=False)   # Compute SVD
+    Dict_init = Dict_init.to(device)
+    U_init = U_init.to(device)
+    S_init = S_init.to(device)
+    VT_init = VT_init.to(device)
 
-w_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
-w_init = w_init.to(device)
+    c_init = linalg.norm(Dict_init.cpu(), ord=2) ** 2
+    c_init = torch.FloatTensor((c_init,))
+    c_init = c_init.to(device)
 
-w_1_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
-w_1_init = w_1_init.to(device)
-w_2_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
-w_2_init = w_2_init.to(device)
+    w_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+    w_init = w_init.to(device)
 
-D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 5, -1, 1
+    w_1_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+    w_1_init = w_1_init.to(device)
+    w_2_init = torch.normal(mean=1, std=1 / 10 * torch.ones(patch_size ** 2)).float()
+    w_2_init = w_2_init.to(device)
 
-# Nicolae Cleju: Use our network
-#model = Deep_KSVD.DenoisingNet_MLP(
-# model = NST_models.DenoisingNet_MLP_NST(    
-#     patch_size = patch_size,
-#     D_in = D_in,
-#     H_1 = H_1,
-#     H_2 = H_2,
-#     H_3 = H_3,
-#     D_out_lam = D_out_lam,
-#     T = T,
-#     min_v = min_v,
-#     max_v = max_v,
-#     Dict_init = Dict_init,
-#     c_init = c_init,
-#     w_init = w_init,
-#     device = device,
-# )
+    D_in, H_1, H_2, H_3, D_out_lam, T, min_v, max_v = 64, 128, 64, 32, 1, 5, -1, 1
 
-# model = NST_models.DenoisingNet_MLP_NST_Orth(    
-#     patch_size = patch_size,
-#     D_in = D_in,
-#     H_1 = H_1,
-#     H_2 = H_2,
-#     H_3 = H_3,
-#     D_out_lam = D_out_lam,
-#     T = T,
-#     min_v = min_v,
-#     max_v = max_v,
-#     U_init = U_init,
-#     S_init = S_init,    
-#     VT_init = VT_init,
-#     c_init = c_init,
-#     w_init = w_init,
-#     device = device,
-# )
-model = NST_models.DenoisingNet_MLP_NST_Orth2(    
-    patch_size = patch_size,
-    D_in = D_in,
-    H_1 = H_1,
-    H_2 = H_2,
-    H_3 = H_3,
-    D_out_lam = D_out_lam,
-    T = T,
-    min_v = min_v,
-    max_v = max_v,
-    U_init = U_init,
-    S_init = S_init,    
-    VT_init = VT_init,
-    c_init = c_init,
-    w_1_init = w_1_init,
-    w_2_init = w_2_init,
-    device = device,
-)
-
-model.to(device)
-
-# Construct our loss function and an Optimizer:
-criterion = torch.nn.MSELoss(reduction="mean")
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-
-start = time.time()
-epochs = 3
-running_loss = 0.0
-
-print_every = 100
-save_every_print = 60
-
-# Save everything in this folder
-
-os.makedirs(save_folder, exist_ok=True)
-
-# Set save file path
-file_to_print_name_template = os.path.join(save_folder, "results_training_{}.csv")
-i = 1
-while os.path.exists(file_to_print_name_template.format(i)):
-    i += 1
-file_to_print_name = file_to_print_name_template.format(i)
-
-# Initialize starting params
-epoch_start = 0
-i_start = 0
-
-# Load from previous file
-#start_training_from = None   # checkpoint
-start_training_from = "results_NST_Orth2_small_3p/checkpoint_epoch1_iter324000_trainloss0.0068617603_testloss0.0059018237.pth.tar"
-if start_training_from is not None:
-    checkpoint = torch.load(start_training_from)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    epoch_start = checkpoint['epoch']
-    i_start = checkpoint['current_iter']
-
-# Write header info
-file_to_print = open(file_to_print_name, "w")
-file_to_print.write(str(datetime.datetime.now()) + "\n")
-file_to_print.write(str(device) + "\n")
-file_to_print.write("start_training_from: " + str(start_training_from) + "\n")
-file_to_print.write("epoch_start: " + str(epoch_start) + "\n")
-file_to_print.write("i_start: " + str(i_start) + "\n")
-file_to_print.flush()
-
-# Train
-train_losses, test_losses = [], []
-for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
-
-    # For the first epoch only, start from i_start, so consume the first `i_start` in the data generator
-    file_to_print.write(str(datetime.datetime.now()) + ": ")
-    file_to_print.write('Skipping {} batches...\n'.format(i_start))
-    file_to_print.flush()
-
-    enumerator = enumerate(dataloader_train)
-    if epoch == epoch_start:
-        for ii in range(i_start):
-            next(enumerator)
-
-    file_to_print.write(str(datetime.datetime.now()) + ": ")
-    file_to_print.write('Start iterations...\n')
-    file_to_print.flush()
-
-    #for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, start=i_start):   # start= changes only the indexing, does not actually skip the elements
-    for i, (sub_images, sub_images_noise) in enumerator:   # start= changes only the indexing, does not actually skip the elements
-        # get the inputs
-        sub_images, sub_images_noise = (
-            sub_images.to(device),
-            sub_images_noise.to(device),
+    if net_name == 'DenoisingNet_MLP':
+        model = Deep_KSVD.DenoisingNet_MLP(
+                        patch_size = patch_size,
+                        D_in = D_in,
+                        H_1 = H_1,
+                        H_2 = H_2,
+                        H_3 = H_3,
+                        D_out_lam = D_out_lam,
+                        T = T,
+                        min_v = min_v,
+                        max_v = max_v,
+                        Dict_init = Dict_init,
+                        c_init = c_init,
+                        w_init = w_init,
+                        device = device,
         )
-
-        # zero the parameter gradients
-        optimizer.zero_grad()
-
-        # forward + backward + optimize
-        outputs = model(sub_images_noise)
-        loss = criterion(outputs, sub_images)
-        loss.backward()
-        optimizer.step()
-
-        # print statistics
-        running_loss += loss.item()
-        if i % print_every == print_every - 1:  # print every x mini-batches
-
-            # Compute train_loss current
-            train_loss = running_loss / print_every
-
-            train_losses.append(train_loss)
-
-            end = time.time()
-            time_curr = end - start
-            file_to_print.write("time:" + " " + str(time_curr) + "\n")
-            start = time.time()
-
-            #file_to_print.write("norm of Dict - Identity = {}\n".format(  ))
-
-            # Compute test loss
-            with torch.no_grad():
-                test_loss = 0
-
-                for patches_t, patches_noise_t in dataloader_test:
-                    patches, patches_noise = (
-                        patches_t.to(device),
-                        patches_noise_t.to(device),
+    elif net_name == 'DenoisingNet_MLP_NST_Orth':
+        model = NST_models.DenoisingNet_MLP_NST_Orth(    
+                        patch_size = patch_size,
+                        D_in = D_in,
+                        H_1 = H_1,
+                        H_2 = H_2,
+                        H_3 = H_3,
+                        D_out_lam = D_out_lam,
+                        T = T,
+                        min_v = min_v,
+                        max_v = max_v,
+                        U_init = U_init,
+                        S_init = S_init,    
+                        VT_init = VT_init,
+                        c_init = c_init,
+                        w_init = w_init,
+                        device = device,
+        )
+    elif net_name == 'DenoisingNet_MLP_NST_Orth2':
+        model = NST_models.DenoisingNet_MLP_NST_Orth(
+                        patch_size = patch_size,
+                        D_in = D_in,
+                        H_1 = H_1,
+                        H_2 = H_2,
+                        H_3 = H_3,
+                        D_out_lam = D_out_lam,
+                        T = T,
+                        min_v = min_v,
+                        max_v = max_v,
+                        U_init = U_init,
+                        S_init = S_init,    
+                        VT_init = VT_init,
+                        c_init = c_init,
+                        w_1_init = w_1_init,
+                        w_2_init = w_2_init,
+                        device = device,
                     )
-                    outputs = model(patches_noise)
-                    loss = criterion(outputs, patches)
-                    test_loss += loss.item()
 
-                test_loss = test_loss / len(dataloader_test)
-            test_losses.append(test_loss)
+    model.to(device)
 
-            end = time.time()
-            time_curr = end - start
-            file_to_print.write("time:" + " " + str(time_curr) + "\n")
-            start = time.time()
+    # Construct our loss function and an Optimizer:
+    criterion = torch.nn.MSELoss(reduction="mean")
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-            # Print info in file
-            # s = "[%d, %d, batchnum=%d] loss_train: %f, loss_test: %f, norm of DDT-I: %f" % (
-            s = "%s: [%d, %d, batchnum=%d] loss_train: %f, loss_test: %f" % (
-                str(datetime.datetime.now()),
-                epoch + 1,
-                (i + 1) * batch_size,
-                (i + 1),
-                train_loss,
-                test_loss,
-                #torch.norm( model.Dict.cpu() @  model.Dict.cpu().t() - torch.eye(64,64) )
+    start = time.time()
+    #epochs = 3
+    running_loss = 0.0
+
+    #print_every = 100
+    #save_every_print = 60
+
+    # Save everything in this folder
+
+    os.makedirs(save_folder, exist_ok=True)
+
+    # Set save file path
+    file_to_print_name_template = os.path.join(save_folder, "results_training_{}.csv")
+    i = 1
+    while os.path.exists(file_to_print_name_template.format(i)):
+        i += 1
+    file_to_print_name = file_to_print_name_template.format(i)
+
+    # Initialize starting params
+    epoch_start = 0
+    i_start = 0
+
+    # Load from previous file
+    #start_training_from = None   # checkpoint
+    #start_training_from = "results_NST_Orth2_small_3p/checkpoint_epoch1_iter324000_trainloss0.0068617603_testloss0.0059018237.pth.tar"
+    #start_training_from = "results_NST_Orth2_small_3p/checkpoint_epoch3_iter36000_trainloss0.0068036216_testloss0.0058909216.pth.tar"
+    if start_training_from is not None:
+        checkpoint = torch.load(start_training_from)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch_start = checkpoint['epoch']
+        i_start = checkpoint['current_iter']
+
+    # Write header info
+    file_to_print = open(file_to_print_name, "w")
+    file_to_print.write(str(datetime.datetime.now()) + "\n")
+    file_to_print.write(str(device) + "\n")
+    file_to_print.write(args_string + "\n")
+    file_to_print.write("start_training_from: " + str(start_training_from) + "\n")
+    file_to_print.write("epoch_start: " + str(epoch_start) + "\n")
+    file_to_print.write("i_start: " + str(i_start) + "\n")
+    file_to_print.flush()
+    print("Training...")
+    # Train
+    train_losses, test_losses = [], []
+    for epoch in range(epoch_start, epochs):  # loop over the dataset multiple times
+        print("Epoch {}/{}".format(epoch+1, epochs))
+
+        # For the first epoch only, start from i_start, so consume the first `i_start` in the data generator
+        file_to_print.write(str(datetime.datetime.now()) + ": ")
+        file_to_print.write('Skipping {} batches...\n'.format(i_start))
+        file_to_print.flush()
+
+        enumerator = enumerate(dataloader_train)
+        if epoch == epoch_start:
+            for ii in range(i_start):
+                next(enumerator)
+
+        file_to_print.write(str(datetime.datetime.now()) + ": ")
+        file_to_print.write('Start iterations...\n')
+        file_to_print.flush()
+
+        #for i, (sub_images, sub_images_noise) in enumerate(dataloader_train, start=i_start):   # start= changes only the indexing, does not actually skip the elements
+        for i, (sub_images, sub_images_noise) in tqdm(enumerator, desc='Batches', total=total_batches_num):   # start= changes only the indexing, does not actually skip the elements
+            # get the inputs
+            sub_images, sub_images_noise = (
+                sub_images.to(device),
+                sub_images_noise.to(device),
             )
-            s = s + "\n"
-            file_to_print.write(s)
-            file_to_print.flush()
-            running_loss = 0.0
 
-        #if i % (10 * print_every) == (10 * print_every) - 1:
-        if i % (save_every_print * print_every) == (save_every_print * print_every) - 1:
-            model_name  = "model_epoch{}_iter{}_trainloss{:.10f}_testloss{:.10f}.pth".format(epoch+1, i+1, train_loss, test_loss)
-            model_savefile = os.path.join(save_folder, model_name)
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-            checkpoint_name  = "checkpoint_epoch{}_iter{}_trainloss{:.10f}_testloss{:.10f}.pth.tar".format(epoch+1, i+1, train_loss, test_loss)
-            checkpoint_savefile = os.path.join(save_folder, checkpoint_name)
+            # forward + backward + optimize
+            outputs = model(sub_images_noise)
+            loss = criterion(outputs, sub_images)
+            loss.backward()
+            optimizer.step()
 
-            # Save model only, for inference
-            torch.save(model.state_dict(), model_savefile)
+            # print statistics
+            running_loss += loss.item()
+            if i % print_every == print_every - 1:  # print every x mini-batches
 
-            #losses_name = "losses_{}.npz".format(i+1)
-            # np.savez(
-            #     losses_name, train=np.array(test_losses), test=np.array(train_losses)
-            # )
+                # Compute train_loss current
+                train_loss = running_loss / print_every
 
-            # Checkpoint everything, for subsequent training
-            torch.save({
-                            'epoch': epoch,
-                            'model_state_dict': model.state_dict(),
-                            'optimizer_state_dict': optimizer.state_dict(),
-                            'dataloader_train': dataloader_train,
-                            'current_iter': i+1   # next iteration to be run
-                        }, 
-                        checkpoint_savefile)
+                train_losses.append(train_loss)
+
+                end = time.time()
+                time_curr = end - start
+                file_to_print.write("time:" + " " + str(time_curr) + "\n")
+                start = time.time()
+
+                #file_to_print.write("norm of Dict - Identity = {}\n".format(  ))
+
+                # Compute test loss
+                with torch.no_grad():
+                    test_loss = 0
+
+                    for patches_t, patches_noise_t in dataloader_test:
+                        patches, patches_noise = (
+                            patches_t.to(device),
+                            patches_noise_t.to(device),
+                        )
+                        outputs = model(patches_noise)
+                        loss = criterion(outputs, patches)
+                        test_loss += loss.item()
+
+                    test_loss = test_loss / len(dataloader_test)
+                test_losses.append(test_loss)
+
+                end = time.time()
+                time_curr = end - start
+                file_to_print.write("time:" + " " + str(time_curr) + "\n")
+                start = time.time()
+
+                # Print info in file
+                # s = "[%d, %d, batchnum=%d] loss_train: %f, loss_test: %f, norm of DDT-I: %f" % (
+                s = "%s: [%d/%d, %d, batchnum=%d/%d] loss_train: %f, loss_test: %f" % (
+                    str(datetime.datetime.now()),
+                    epoch + 1,
+                    epochs,
+                    (i + 1) * batch_size,
+                    (i + 1),
+                    total_batches_num,
+                    train_loss,
+                    test_loss,
+                    #torch.norm( model.Dict.cpu() @  model.Dict.cpu().t() - torch.eye(64,64) )
+                )
+                s = s + "\n"
+                file_to_print.write(s)
+                file_to_print.flush()
+                running_loss = 0.0
+
+            #if i % (10 * print_every) == (10 * print_every) - 1:
+            if i % (save_every_print * print_every) == (save_every_print * print_every) - 1:
+                model_name  = "model_epoch{}_iter{}_trainloss{:.10f}_testloss{:.10f}.pth".format(epoch+1, i+1, train_loss, test_loss)
+                model_savefile = os.path.join(save_folder, model_name)
+
+                checkpoint_name  = "checkpoint_epoch{}_iter{}_trainloss{:.10f}_testloss{:.10f}.pth.tar".format(epoch+1, i+1, train_loss, test_loss)
+                checkpoint_savefile = os.path.join(save_folder, checkpoint_name)
+
+                # Save model only, for inference
+                torch.save(model.state_dict(), model_savefile)
+
+                #losses_name = "losses_{}.npz".format(i+1)
+                # np.savez(
+                #     losses_name, train=np.array(test_losses), test=np.array(train_losses)
+                # )
+
+                # Checkpoint everything, for subsequent training
+                torch.save({
+                                'epoch': epoch,
+                                'model_state_dict': model.state_dict(),
+                                'optimizer_state_dict': optimizer.state_dict(),
+                                'dataloader_train': dataloader_train,
+                                'current_iter': i+1   # next iteration to be run
+                            }, 
+                            checkpoint_savefile)
 
 
-file_to_print.write("Finished Training")
+    file_to_print.write("Finished Training")
+
+
+if __name__ == '__main__':
+
+    #=======================================
+    # BSD 500 - 68
+    #=======================================
+    # images_dir = 'gray'
+    # file_train_name = "train_gray.txt"
+    # file_test_name  = "test_gray.txt"
+    #=======================================
+    #=======================================
+    # BSD 50 - 7
+    #=======================================
+    images_dir = 'gray_small'
+    file_train_name = "train_gray_small.txt"
+    file_test_name  = "test_gray_small.txt"
+    #=======================================
+
+    #save_folder = 'results_NST_Orth_small_3p'
+    save_folder = 'results_NST_Orth2_small_3p'
